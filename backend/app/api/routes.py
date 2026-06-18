@@ -12,9 +12,19 @@ from app.errors.handlers import handle_sheets_error, handle_generic_error
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api")
 
-# Initialize services
-sheets_client = SheetsClient()
+# Initialize cache (doesn't require credentials)
 cache = MemoryCache(ttl_minutes=SHEET_CONFIG["refresh_interval_minutes"])
+
+# Sheets client will be initialized on first request
+sheets_client = None
+
+
+def get_sheets_client():
+    """Lazy-load Sheets client on first use."""
+    global sheets_client
+    if sheets_client is None:
+        sheets_client = SheetsClient()
+    return sheets_client
 
 
 @router.get("/health", response_model=HealthResponse)
@@ -56,7 +66,8 @@ async def get_domain_analytics(domain: str) -> AnalyticsResponse:
             )
 
         # Fetch from Sheets
-        raw_data = sheets_client.fetch_range(
+        client = get_sheets_client()
+        raw_data = client.fetch_range(
             domain_config["tab_name"],
             domain_config["range"]
         )
